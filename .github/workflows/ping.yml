@@ -1,0 +1,9 @@
+name: ping
+on: [workflow_dispatch]
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps: [{ run: echo "linux runner OK" }]
+  mac:
+    runs-on: macos-14
+    steps: [{ run: echo "mac runner OK" }]
