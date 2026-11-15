@@ -1,0 +1,59 @@
+name: Build iPad 2 app (no jailbreak)
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install ldid dpkg make
+
+      - name: Set up Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
+
+      - name: Fetch an armv7-capable iOS SDK
+        run: |
+          set -e
+          cd "$HOME/theos/sdks"
+          # Grab only the iOS SDKs we can use for 32-bit (9.3, else 10.3) without cloning the huge repo.
+          git clone -n --depth=1 --filter=tree:0 https://github.com/theos/sdks.git /tmp/sdks
+          cd /tmp/sdks
+          git sparse-checkout set --no-cone iPhoneOS9.3.sdk iPhoneOS10.3.sdk || true
+          git checkout
+          cp -R iPhoneOS9.3.sdk "$HOME/theos/sdks/" 2>/dev/null || true
+          cp -R iPhoneOS10.3.sdk "$HOME/theos/sdks/" 2>/dev/null || true
+          echo "SDKs present:"; ls "$HOME/theos/sdks"
+
+      - name: Build the app
+        run: |
+          set -e
+          export THEOS=$HOME/theos
+          # Use 10.3 SDK if 9.3 is missing (both can target armv7 / min iOS 9).
+          if [ ! -d "$THEOS/sdks/iPhoneOS9.3.sdk" ] && [ -d "$THEOS/sdks/iPhoneOS10.3.sdk" ]; then
+            sed -i '' 's/iphone:clang:9.3:9.0/iphone:clang:10.3:9.0/' Makefile || true
+          fi
+          make clean || true
+          make
+
+      - name: Package into an unsigned .ipa
+        run: |
+          set -e
+          APP=$(find . "$HOME/theos" -type d -name "HelloIPad2.app" 2>/dev/null | head -1)
+          echo "App bundle: $APP"
+          if [ -z "$APP" ]; then echo "No .app produced"; exit 1; fi
+          rm -rf Payload HelloIPad2.ipa
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qr HelloIPad2.ipa Payload
+          echo "Built:"; ls -la HelloIPad2.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HelloIPad2-ipa
+          path: HelloIPad2.ipa
