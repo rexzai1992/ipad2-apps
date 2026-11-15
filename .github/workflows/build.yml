@@ -5,38 +5,42 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build tools
-        run: brew install ldid dpkg make
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y build-essential fakeroot rsync perl git curl unzip zip
 
-      - name: Set up Theos
-        run: |
-          git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
-          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
-
-      - name: Fetch an armv7-capable iOS SDK
+      - name: Install Theos (Linux iOS toolchain)
         run: |
           set -e
-          cd "$HOME/theos/sdks"
-          # Grab only the iOS SDKs we can use for 32-bit (9.3, else 10.3) without cloning the huge repo.
-          git clone -n --depth=1 --filter=tree:0 https://github.com/theos/sdks.git /tmp/sdks
-          cd /tmp/sdks
-          git sparse-checkout set --no-cone iPhoneOS9.3.sdk iPhoneOS10.3.sdk || true
-          git checkout
-          cp -R iPhoneOS9.3.sdk "$HOME/theos/sdks/" 2>/dev/null || true
-          cp -R iPhoneOS10.3.sdk "$HOME/theos/sdks/" 2>/dev/null || true
-          echo "SDKs present:"; ls "$HOME/theos/sdks"
+          export THEOS=$HOME/theos
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+          echo "theos installed:"; ls "$THEOS"
+
+      - name: Ensure an armv7-capable iOS SDK
+        run: |
+          set -e
+          export THEOS=$HOME/theos
+          ls "$THEOS/sdks" || true
+          if [ ! -d "$THEOS/sdks/iPhoneOS9.3.sdk" ] && [ ! -d "$THEOS/sdks/iPhoneOS10.3.sdk" ]; then
+            git clone -n --depth=1 --filter=tree:0 https://github.com/theos/sdks.git /tmp/sdks
+            cd /tmp/sdks
+            git sparse-checkout set --no-cone iPhoneOS9.3.sdk iPhoneOS10.3.sdk || true
+            git checkout || true
+            cp -R iPhoneOS9.3.sdk "$THEOS/sdks/" 2>/dev/null || true
+            cp -R iPhoneOS10.3.sdk "$THEOS/sdks/" 2>/dev/null || true
+          fi
+          echo "SDKs:"; ls "$THEOS/sdks"
 
       - name: Build the app
         run: |
           set -e
           export THEOS=$HOME/theos
-          # Use 10.3 SDK if 9.3 is missing (both can target armv7 / min iOS 9).
           if [ ! -d "$THEOS/sdks/iPhoneOS9.3.sdk" ] && [ -d "$THEOS/sdks/iPhoneOS10.3.sdk" ]; then
-            sed -i '' 's/iphone:clang:9.3:9.0/iphone:clang:10.3:9.0/' Makefile || true
+            sed -i 's/iphone:clang:9.3:9.0/iphone:clang:10.3:9.0/' Makefile
           fi
           make clean || true
           make
@@ -44,9 +48,10 @@ jobs:
       - name: Package into an unsigned .ipa
         run: |
           set -e
-          APP=$(find . "$HOME/theos" -type d -name "HelloIPad2.app" 2>/dev/null | head -1)
+          export THEOS=$HOME/theos
+          APP=$(find . "$THEOS" -type d -name "HelloIPad2.app" 2>/dev/null | head -1)
           echo "App bundle: $APP"
-          if [ -z "$APP" ]; then echo "No .app produced"; exit 1; fi
+          [ -n "$APP" ] || { echo "No .app produced"; exit 1; }
           rm -rf Payload HelloIPad2.ipa
           mkdir Payload
           cp -R "$APP" Payload/
