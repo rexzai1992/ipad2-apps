@@ -5,12 +5,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
       - name: Install system deps
-        run: sudo apt-get update && sudo apt-get install -y build-essential fakeroot rsync perl git curl unzip zip
+        run: sudo apt-get update && sudo apt-get install -y build-essential fakeroot rsync perl git curl unzip zip libxml2 libtinfo5 libzip-dev
 
       - name: Install Theos (Linux iOS toolchain)
         run: |
