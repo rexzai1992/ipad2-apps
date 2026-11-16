@@ -20,28 +20,25 @@ jobs:
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
           echo "theos installed:"; ls "$THEOS"
 
-      - name: Ensure an armv7-capable iOS SDK
+      - name: Fetch the iPhoneOS 10.3 SDK (last SDK with 32-bit armv7)
         run: |
           set -e
           export THEOS=$HOME/theos
-          ls "$THEOS/sdks" || true
-          if [ ! -d "$THEOS/sdks/iPhoneOS9.3.sdk" ] && [ ! -d "$THEOS/sdks/iPhoneOS10.3.sdk" ]; then
+          mkdir -p "$THEOS/sdks"
+          if [ ! -d "$THEOS/sdks/iPhoneOS10.3.sdk" ]; then
             git clone -n --depth=1 --filter=tree:0 https://github.com/theos/sdks.git /tmp/sdks
             cd /tmp/sdks
-            git sparse-checkout set --no-cone iPhoneOS9.3.sdk iPhoneOS10.3.sdk || true
-            git checkout || true
-            cp -R iPhoneOS9.3.sdk "$THEOS/sdks/" 2>/dev/null || true
-            cp -R iPhoneOS10.3.sdk "$THEOS/sdks/" 2>/dev/null || true
+            git sparse-checkout set --no-cone iPhoneOS10.3.sdk
+            git checkout
+            cp -R iPhoneOS10.3.sdk "$THEOS/sdks/"
           fi
-          echo "SDKs:"; ls "$THEOS/sdks"
+          echo "SDKs present:"; ls "$THEOS/sdks"
+          echo "liblaunch check:"; ls "$THEOS/sdks/iPhoneOS10.3.sdk/usr/lib/system/" | grep -i launch || echo "(no liblaunch in SDK)"
 
       - name: Build the app
         run: |
           set -e
           export THEOS=$HOME/theos
-          if [ ! -d "$THEOS/sdks/iPhoneOS9.3.sdk" ] && [ -d "$THEOS/sdks/iPhoneOS10.3.sdk" ]; then
-            sed -i 's/iphone:clang:9.3:9.0/iphone:clang:10.3:9.0/' Makefile
-          fi
           make clean || true
           make
 
