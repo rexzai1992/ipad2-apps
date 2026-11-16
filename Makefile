@@ -10,5 +10,6 @@ APPLICATION_NAME = HelloIPad2
 HelloIPad2_FILES = $(wildcard src/*.m)
 HelloIPad2_FRAMEWORKS = UIKit CoreGraphics AVFoundation
 HelloIPad2_CFLAGS = -fobjc-arc
+HelloIPad2_LDFLAGS = -Wl,-U,_objc_msgSend_stret -Wl,-U,_objc_msgSendSuper2_stret
 
 include $(THEOS)/makefiles/application.mk
